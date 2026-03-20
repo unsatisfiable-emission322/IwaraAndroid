@@ -1,0 +1,8 @@
+.gradle/
+.gradle-user/
+.idea/
+build/
+.edge-profile/
+captures/
+local.properties
+app/build/

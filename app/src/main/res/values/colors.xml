@@ -1,0 +1,9 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="launcher_monet_mist">#BFD3D9</color>
+    <color name="launcher_monet_sage">#9FB8A4</color>
+    <color name="launcher_monet_rose">#D8A7A1</color>
+    <color name="launcher_monet_cream">#F2E6D5</color>
+    <color name="launcher_monet_blue">#6E879A</color>
+    <color name="launcher_monet_deep">#5B6D7E</color>
+</resources>
