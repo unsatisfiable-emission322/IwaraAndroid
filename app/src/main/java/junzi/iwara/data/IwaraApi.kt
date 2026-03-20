@@ -47,17 +47,21 @@ class IwaraApi {
             bearerToken = bearerToken,
         )
 
-    fun fetchVideos(
+    fun fetchVideosPage(
         params: Map<String, String>,
         bearerToken: String? = null,
-    ): JSONArray {
-        val response = requestJsonObject(
+    ): JSONObject =
+        requestJsonObject(
             method = "GET",
             url = apiUrl(buildPath("/videos", params)),
             bearerToken = bearerToken,
         )
-        return response.optJSONArray("results") ?: JSONArray()
-    }
+
+    fun fetchVideos(
+        params: Map<String, String>,
+        bearerToken: String? = null,
+    ): JSONArray =
+        fetchVideosPage(params, bearerToken).optJSONArray("results") ?: JSONArray()
 
     fun fetchImages(
         params: Map<String, String>,

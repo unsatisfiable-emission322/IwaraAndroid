@@ -1,4 +1,4 @@
-﻿package junzi.iwara
+package junzi.iwara
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
@@ -81,6 +81,7 @@ fun PlaylistScreen(
                     onOpenVideo = controller::openVideo,
                     onOpenProfile = controller::openProfile,
                     onAddToPlaylist = { playlistTargetId = it },
+                    onPageChange = { page -> controller.openPlaylist(state.playlist.detail.playlist.id, page) },
                     modifier = Modifier.padding(paddingValues),
                 )
             }
@@ -98,6 +99,7 @@ private fun PlaylistDetailBody(
     onOpenVideo: (String) -> Unit,
     onOpenProfile: (String) -> Unit,
     onAddToPlaylist: (String) -> Unit,
+    onPageChange: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -114,7 +116,7 @@ private fun PlaylistDetailBody(
                 Text(detail.playlist.title, style = MaterialTheme.typography.headlineSmall)
                 Text(
                     text = if (detail.playlist.authorUsername.isNotBlank()) {
-                        "@${detail.playlist.authorUsername} · ${detail.count}"
+                        "@${detail.playlist.authorUsername} ? ${detail.count}"
                     } else {
                         stringResource(R.string.label_playlist_videos, detail.count)
                     },
@@ -128,6 +130,14 @@ private fun PlaylistDetailBody(
                 onOpen = { onOpenVideo(video.id) },
                 onOpenProfile = { onOpenProfile(video.authorUsername) },
                 onAddToPlaylist = { onAddToPlaylist(video.id) },
+            )
+        }
+        item {
+            PaginationBar(
+                currentPage = detail.page,
+                totalCount = detail.count,
+                pageSize = detail.limit,
+                onPageSelected = onPageChange,
             )
         }
     }

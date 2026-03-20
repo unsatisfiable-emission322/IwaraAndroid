@@ -1,4 +1,4 @@
-﻿package junzi.iwara.model
+package junzi.iwara.model
 
 import junzi.iwara.R
 
@@ -24,6 +24,16 @@ enum class AppRoute {
     Profile,
     Player,
     Playlist,
+    Downloads,
+}
+
+enum class DownloadStatus {
+    Pending,
+    Running,
+    Paused,
+    Successful,
+    Failed,
+    Unknown,
 }
 
 data class IwaraUser(
@@ -128,10 +138,33 @@ data class PlaylistDetail(
     val limit: Int,
 )
 
+data class PagedResult<T>(
+    val items: List<T>,
+    val page: Int,
+    val count: Int,
+    val limit: Int,
+)
+
+data class DownloadListItem(
+    val downloadId: Long,
+    val videoId: String,
+    val title: String,
+    val thumbnailUrl: String?,
+    val qualityLabel: String,
+    val fileName: String,
+    val createdAtMs: Long,
+    val status: DownloadStatus,
+    val progressPercent: Int?,
+    val localUri: String?,
+)
+
 data class FeedUiState(
     val loading: Boolean = false,
     val sort: FeedSort = FeedSort.Trending,
     val videos: List<VideoSummary> = emptyList(),
+    val page: Int = 0,
+    val count: Int = 0,
+    val limit: Int = 24,
     val error: String? = null,
     val categories: List<String> = emptyList(),
     val selectedTag: String? = null,
@@ -143,6 +176,9 @@ data class SearchUiState(
     val loading: Boolean = false,
     val videoResults: List<VideoSummary> = emptyList(),
     val userResults: List<IwaraUser> = emptyList(),
+    val page: Int = 0,
+    val count: Int = 0,
+    val limit: Int = 32,
     val error: String? = null,
 )
 
@@ -171,6 +207,12 @@ data class PlaylistUiState(
     val error: String? = null,
 )
 
+data class DownloadsUiState(
+    val loading: Boolean = false,
+    val items: List<DownloadListItem> = emptyList(),
+    val error: String? = null,
+)
+
 data class AppUiState(
     val bootstrapping: Boolean = true,
     val route: AppRoute = AppRoute.Login,
@@ -182,5 +224,5 @@ data class AppUiState(
     val profile: ProfileUiState = ProfileUiState(),
     val player: PlayerUiState = PlayerUiState(),
     val playlist: PlaylistUiState = PlaylistUiState(),
+    val downloads: DownloadsUiState = DownloadsUiState(),
 )
-

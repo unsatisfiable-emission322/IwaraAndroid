@@ -7,6 +7,7 @@ import junzi.iwara.model.IwaraUser
 import junzi.iwara.model.ImageSummary
 import junzi.iwara.model.PlaylistDetail
 import junzi.iwara.model.PlaylistSummary
+import junzi.iwara.model.PagedResult
 import junzi.iwara.model.ProfileDetail
 import junzi.iwara.model.SearchType
 import junzi.iwara.model.SessionInfo
@@ -55,24 +56,42 @@ class IwaraRepository(
         sort: FeedSort,
         session: SessionInfo?,
         tag: String? = null,
-    ): List<VideoSummary> {
+        page: Int = 0,
+    ): PagedResult<VideoSummary> {
         val params = mutableMapOf(
             "sort" to sort.apiValue,
             "limit" to "24",
             "rating" to "all",
+            "page" to page.toString(),
         )
         tag?.let { params["tags"] = it }
-        return parseVideoList(api.fetchVideos(params, session?.refreshToken))
+        val payload = api.fetchVideosPage(params, session?.refreshToken)
+        return PagedResult(
+            items = parseVideoList(payload.optJSONArray("results") ?: JSONArray()),
+            page = payload.optInt("page", page),
+            count = payload.optInt("count"),
+            limit = payload.optInt("limit", params["limit"]?.toIntOrNull() ?: 24),
+        )
     }
 
-    fun searchVideos(query: String, session: SessionInfo?): List<VideoSummary> {
-        val payload = api.fetchSearchResults(query, SearchType.Videos.apiValue, 0, session?.refreshToken)
-        return parseVideoList(payload.optJSONArray("results") ?: JSONArray())
+    fun searchVideos(query: String, session: SessionInfo?, page: Int = 0): PagedResult<VideoSummary> {
+        val payload = api.fetchSearchResults(query, SearchType.Videos.apiValue, page, session?.refreshToken)
+        return PagedResult(
+            items = parseVideoList(payload.optJSONArray("results") ?: JSONArray()),
+            page = payload.optInt("page", page),
+            count = payload.optInt("count"),
+            limit = payload.optInt("limit", 32),
+        )
     }
 
-    fun searchUsers(query: String, session: SessionInfo?): List<IwaraUser> {
-        val payload = api.fetchSearchResults(query, SearchType.Users.apiValue, 0, session?.refreshToken)
-        return parseUserList(payload.optJSONArray("results") ?: JSONArray())
+    fun searchUsers(query: String, session: SessionInfo?, page: Int = 0): PagedResult<IwaraUser> {
+        val payload = api.fetchSearchResults(query, SearchType.Users.apiValue, page, session?.refreshToken)
+        return PagedResult(
+            items = parseUserList(payload.optJSONArray("results") ?: JSONArray()),
+            page = payload.optInt("page", page),
+            count = payload.optInt("count"),
+            limit = payload.optInt("limit", 32),
+        )
     }
 
     fun fetchVideoDetail(id: String, session: SessionInfo?): VideoDetail {
@@ -237,8 +256,12 @@ class IwaraRepository(
         )
     }
 
-    fun fetchPlaylistDetail(id: String, session: SessionInfo?): PlaylistDetail {
-        val payload = api.fetchPlaylist(id = id, bearerToken = session?.refreshToken)
+    fun fetchPlaylistDetail(id: String, session: SessionInfo?, page: Int = 0): PlaylistDetail {
+        val payload = api.fetchPlaylist(
+            id = id,
+            params = mapOf("page" to page.toString()),
+            bearerToken = session?.refreshToken,
+        )
         val playlistJson = payload.getJSONObject("playlist")
         val playlist = parsePlaylistSummary(playlistJson)
         val videos = parseVideoList(payload.optJSONArray("results") ?: JSONArray())

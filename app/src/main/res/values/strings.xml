@@ -64,4 +64,22 @@
     <string name="error_load_video">加载播放页失败</string>
     <string name="error_load_comments">加载评论失败</string>
     <string name="error_post_comment">发表评论失败</string>
+    <string name="action_download">下载</string>
+    <string name="action_download_list">下载列表</string>
+    <string name="action_refresh_downloads">刷新下载列表</string>
+    <string name="action_previous_page">上一页</string>
+    <string name="action_next_page">下一页</string>
+    <string name="title_downloads">下载列表</string>
+    <string name="title_download_quality">选择下载清晰度</string>
+    <string name="label_downloads_empty">暂无下载</string>
+    <string name="label_download_quality_hint">下载会保存到公开的 Downloads 目录。</string>
+    <string name="label_download_status_pending">等待中</string>
+    <string name="label_download_status_running">下载中</string>
+    <string name="label_download_status_paused">已暂停</string>
+    <string name="label_download_status_success">已完成</string>
+    <string name="label_download_status_failed">下载失败</string>
+    <string name="label_download_status_unknown">状态未知</string>
+    <string name="label_page_indicator">第 %1$d / %2$d 页</string>
+    <string name="message_download_started">已开始下载 %1$s</string>
+    <string name="error_download_failed">下载失败</string>
 </resources>

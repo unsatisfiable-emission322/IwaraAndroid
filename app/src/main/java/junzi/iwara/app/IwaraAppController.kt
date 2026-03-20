@@ -3,6 +3,7 @@
 import android.content.Context
 import junzi.iwara.R
 import junzi.iwara.data.IwaraApi
+import junzi.iwara.data.IwaraDownloads
 import junzi.iwara.data.IwaraRepository
 import junzi.iwara.data.IwaraSessionStore
 import junzi.iwara.model.AppRoute
@@ -30,6 +31,7 @@ class IwaraAppController(context: Context) {
         api = IwaraApi(),
         sessionStore = IwaraSessionStore(appContext),
     )
+    private val downloads = IwaraDownloads(appContext)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private val _state = MutableStateFlow(AppUiState())
@@ -110,7 +112,11 @@ class IwaraAppController(context: Context) {
         }
     }
 
-    fun loadFeed(sort: FeedSort = _state.value.feed.sort, tag: String? = _state.value.feed.selectedTag) {
+    fun loadFeed(
+        sort: FeedSort = _state.value.feed.sort,
+        tag: String? = _state.value.feed.selectedTag,
+        page: Int = _state.value.feed.page,
+    ) {
         scope.launch {
             _state.update {
                 it.copy(
@@ -120,20 +126,24 @@ class IwaraAppController(context: Context) {
                         error = null,
                         sort = sort,
                         selectedTag = tag,
+                        page = page,
                     ),
                 )
             }
 
             val result = withContext(Dispatchers.IO) {
-                runCatching { repository.fetchVideos(sort, _state.value.session, tag) }
+                runCatching { repository.fetchVideos(sort, _state.value.session, tag, page) }
             }
-            result.onSuccess { videos ->
+            result.onSuccess { paged ->
                 _state.update {
                     it.copy(
                         route = AppRoute.Feed,
                         feed = it.feed.copy(
                             loading = false,
-                            videos = videos,
+                            videos = paged.items,
+                            page = paged.page,
+                            count = paged.count,
+                            limit = paged.limit,
                             error = null,
                             sort = sort,
                             selectedTag = tag,
@@ -155,18 +165,18 @@ class IwaraAppController(context: Context) {
     }
 
     fun openTag(tag: String) {
-        loadFeed(sort = _state.value.feed.sort, tag = tag)
+        loadFeed(sort = _state.value.feed.sort, tag = tag, page = 0)
     }
 
     fun clearTag() {
-        loadFeed(sort = _state.value.feed.sort, tag = null)
+        loadFeed(sort = _state.value.feed.sort, tag = null, page = 0)
     }
 
     fun openSearch() {
         _state.update { it.copy(route = AppRoute.Search) }
     }
 
-    fun search(query: String, type: SearchType) {
+    fun search(query: String, type: SearchType, page: Int = 0) {
         scope.launch {
             _state.update {
                 it.copy(
@@ -176,6 +186,7 @@ class IwaraAppController(context: Context) {
                         type = type,
                         loading = true,
                         error = null,
+                        page = page,
                     ),
                 )
             }
@@ -183,16 +194,19 @@ class IwaraAppController(context: Context) {
             when (type) {
                 SearchType.Videos -> {
                     val result = withContext(Dispatchers.IO) {
-                        runCatching { repository.searchVideos(query, _state.value.session) }
+                        runCatching { repository.searchVideos(query, _state.value.session, page) }
                     }
-                    result.onSuccess { videos ->
+                    result.onSuccess { paged ->
                         _state.update {
                             it.copy(
                                 route = AppRoute.Search,
                                 search = it.search.copy(
                                     loading = false,
-                                    videoResults = videos,
+                                    videoResults = paged.items,
                                     userResults = emptyList(),
+                                    page = paged.page,
+                                    count = paged.count,
+                                    limit = paged.limit,
                                 ),
                             )
                         }
@@ -211,16 +225,19 @@ class IwaraAppController(context: Context) {
 
                 SearchType.Users -> {
                     val result = withContext(Dispatchers.IO) {
-                        runCatching { repository.searchUsers(query, _state.value.session) }
+                        runCatching { repository.searchUsers(query, _state.value.session, page) }
                     }
-                    result.onSuccess { users ->
+                    result.onSuccess { paged ->
                         _state.update {
                             it.copy(
                                 route = AppRoute.Search,
                                 search = it.search.copy(
                                     loading = false,
                                     videoResults = emptyList(),
-                                    userResults = users,
+                                    userResults = paged.items,
+                                    page = paged.page,
+                                    count = paged.count,
+                                    limit = paged.limit,
                                 ),
                             )
                         }
@@ -338,7 +355,7 @@ class IwaraAppController(context: Context) {
         }
     }
 
-    fun openPlaylist(playlistId: String) {
+    fun openPlaylist(playlistId: String, page: Int = 0) {
         scope.launch {
             _state.update {
                 it.copy(
@@ -347,7 +364,7 @@ class IwaraAppController(context: Context) {
                 )
             }
             val result = withContext(Dispatchers.IO) {
-                runCatching { repository.fetchPlaylistDetail(playlistId, _state.value.session) }
+                runCatching { repository.fetchPlaylistDetail(playlistId, _state.value.session, page) }
             }
             result.onSuccess { detail ->
                 _state.update {
@@ -517,6 +534,76 @@ class IwaraAppController(context: Context) {
         _state.update {
             val targetRoute = if (it.profile.detail != null) AppRoute.Profile else AppRoute.Feed
             it.copy(route = targetRoute, playlist = PlaylistUiState())
+        }
+    }
+
+    fun openDownloads() {
+        scope.launch {
+            _state.update { it.copy(route = AppRoute.Downloads, downloads = it.downloads.copy(loading = true, error = null)) }
+            refreshDownloads(openRoute = true)
+        }
+    }
+
+    fun refreshDownloads() {
+        refreshDownloads(openRoute = false)
+    }
+
+    private fun refreshDownloads(openRoute: Boolean) {
+        scope.launch {
+            if (!openRoute) {
+                _state.update { it.copy(downloads = it.downloads.copy(loading = true, error = null)) }
+            }
+            val result = withContext(Dispatchers.IO) {
+                runCatching { downloads.list() }
+            }
+            result.onSuccess { items ->
+                _state.update {
+                    it.copy(
+                        route = if (openRoute) AppRoute.Downloads else it.route,
+                        downloads = it.downloads.copy(loading = false, items = items, error = null),
+                    )
+                }
+            }.onFailure { throwable ->
+                _state.update {
+                    it.copy(
+                        route = if (openRoute) AppRoute.Downloads else it.route,
+                        downloads = it.downloads.copy(
+                            loading = false,
+                            error = throwable.message ?: appContext.getString(R.string.error_download_failed),
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    fun closeDownloads() {
+        _state.update {
+            val targetRoute = when {
+                it.player.detail != null -> AppRoute.Player
+                it.playlist.detail != null -> AppRoute.Playlist
+                it.profile.detail != null -> AppRoute.Profile
+                else -> AppRoute.Feed
+            }
+            it.copy(route = targetRoute)
+        }
+    }
+
+    fun downloadVideo(
+        detail: junzi.iwara.model.VideoDetail,
+        variant: junzi.iwara.model.VideoVariant,
+        onResult: (String?) -> Unit,
+    ) {
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching { downloads.enqueue(detail, variant) }
+            }
+            result.onSuccess {
+                refreshDownloads(openRoute = false)
+                onResult(null)
+            }.onFailure {
+                onResult(it.message ?: appContext.getString(R.string.error_download_failed))
+            }
         }
     }
 

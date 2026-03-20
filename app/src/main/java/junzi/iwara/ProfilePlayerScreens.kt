@@ -7,6 +7,7 @@ import android.content.pm.ActivityInfo
 import android.media.AudioManager
 import android.provider.Settings
 import android.view.WindowManager
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -33,12 +34,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Brightness6
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -49,6 +53,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -85,6 +90,7 @@ import junzi.iwara.model.CommentItem
 import junzi.iwara.model.PlaylistSummary
 import junzi.iwara.model.ProfileDetail
 import junzi.iwara.model.VideoDetail
+import junzi.iwara.model.VideoVariant
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 
@@ -306,7 +312,14 @@ fun PlayerScreen(
             }
         }
     }
+    val downloadableVariants = remember(detail?.variants) {
+        detail?.variants
+            ?.filterNot { it.name.equals("preview", ignoreCase = true) }
+            ?.filter { it.downloadUrl.isNotBlank() }
+            ?: emptyList()
+    }
     var isFullscreen by remember(detail?.id) { mutableStateOf(false) }
+    var showDownloadDialog by remember(detail?.id) { mutableStateOf(false) }
 
     DisposableEffect(player) {
         onDispose { player?.release() }
@@ -329,6 +342,16 @@ fun PlayerScreen(
                     navigationIcon = {
                         IconButton(onClick = controller::closePlayer) {
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = controller::openDownloads) {
+                            Icon(Icons.AutoMirrored.Filled.List, contentDescription = stringResource(R.string.action_download_list))
+                        }
+                        if (downloadableVariants.isNotEmpty()) {
+                            IconButton(onClick = { showDownloadDialog = true }) {
+                                Icon(Icons.Filled.FileDownload, contentDescription = stringResource(R.string.action_download))
+                            }
                         }
                     },
                 )
@@ -386,6 +409,24 @@ fun PlayerScreen(
                 )
             }
         }
+    }
+
+    if (showDownloadDialog && detail != null) {
+        DownloadVariantDialog(
+            title = detail.title,
+            variants = downloadableVariants,
+            onDismiss = { showDownloadDialog = false },
+            onDownload = { variant ->
+                controller.downloadVideo(detail, variant) { message ->
+                    val toastText = message ?: context.getString(
+                        R.string.message_download_started,
+                        variantDisplayLabel(variant),
+                    )
+                    Toast.makeText(context, toastText, Toast.LENGTH_SHORT).show()
+                }
+                showDownloadDialog = false
+            },
+        )
     }
 }
 
@@ -682,10 +723,7 @@ private fun PlayerViewport(
                                 showControls()
                                 onToggleFullscreen()
                             },
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.55f)),
+                            modifier = Modifier.size(48.dp),
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.FullscreenExit,
@@ -707,10 +745,7 @@ private fun PlayerViewport(
                                 showControls()
                                 player.play()
                             },
-                            modifier = Modifier
-                                .size(if (isFullscreen) 72.dp else 60.dp)
-                                .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.58f)),
+                            modifier = Modifier.size(if (isFullscreen) 72.dp else 60.dp),
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.PlayArrow,
@@ -758,10 +793,7 @@ private fun PlayerViewport(
                                     player.play()
                                 }
                             },
-                            modifier = Modifier
-                                .size(if (isFullscreen) 48.dp else 42.dp)
-                                .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.55f)),
+                            modifier = Modifier.size(if (isFullscreen) 48.dp else 42.dp),
                         ) {
                             Icon(
                                 imageVector = if (playerState.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
@@ -798,10 +830,7 @@ private fun PlayerViewport(
                                 showControls()
                                 onToggleFullscreen()
                             },
-                            modifier = Modifier
-                                .size(if (isFullscreen) 48.dp else 42.dp)
-                                .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.55f)),
+                            modifier = Modifier.size(if (isFullscreen) 48.dp else 42.dp),
                         ) {
                             Icon(
                                 imageVector = if (isFullscreen) Icons.Filled.FullscreenExit else Icons.Filled.Fullscreen,
@@ -1089,6 +1118,45 @@ private enum class PlayerGestureMode {
     Seek,
     Brightness,
     Volume,
+}
+
+@Composable
+private fun DownloadVariantDialog(
+    title: String,
+    variants: List<VideoVariant>,
+    onDismiss: () -> Unit,
+    onDownload: (VideoVariant) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.title_download_quality)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(title, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(
+                    text = stringResource(R.string.label_download_quality_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                variants.forEach { variant ->
+                    TextButton(onClick = { onDownload(variant) }) {
+                        Text(variantDisplayLabel(variant))
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.action_back))
+            }
+        },
+    )
+}
+
+private fun variantDisplayLabel(variant: VideoVariant): String = when {
+    variant.name.equals("Source", ignoreCase = true) -> "Source"
+    variant.name.endsWith("p", ignoreCase = true) -> variant.name
+    else -> "${variant.name}p"
 }
 
 private fun formatDuration(durationMs: Long): String {

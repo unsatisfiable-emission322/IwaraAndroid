@@ -1,4 +1,4 @@
-﻿package junzi.iwara
+package junzi.iwara
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.horizontalScroll
@@ -87,7 +87,7 @@ fun FeedScreen(
                 FeedSort.entries.forEach { sort ->
                     FilterChip(
                         selected = state.feed.sort == sort,
-                        onClick = { controller.loadFeed(sort = sort, tag = state.feed.selectedTag) },
+                        onClick = { controller.loadFeed(sort = sort, tag = state.feed.selectedTag, page = 0) },
                         label = { Text(stringResource(sort.labelRes)) },
                     )
                 }
@@ -101,13 +101,13 @@ fun FeedScreen(
             ) {
                 FilterChip(
                     selected = state.feed.selectedTag == null,
-                    onClick = controller::clearTag,
+                    onClick = { controller.loadFeed(sort = state.feed.sort, tag = null, page = 0) },
                     label = { Text(stringResource(R.string.filter_all)) },
                 )
                 state.feed.categories.forEach { category ->
                     FilterChip(
                         selected = state.feed.selectedTag == category,
-                        onClick = { controller.openTag(category) },
+                        onClick = { controller.loadFeed(sort = state.feed.sort, tag = category, page = 0) },
                         label = { Text(category) },
                     )
                 }
@@ -116,7 +116,7 @@ fun FeedScreen(
                     ?.let { tag ->
                         FilterChip(
                             selected = true,
-                            onClick = { controller.openTag(tag) },
+                            onClick = { controller.loadFeed(sort = state.feed.sort, tag = tag, page = 0) },
                             label = { Text(tag) },
                         )
                     }
@@ -132,13 +132,24 @@ fun FeedScreen(
                     modifier = Modifier.padding(16.dp),
                 )
             }
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 items(state.feed.videos, key = { it.id }) { video ->
                     VideoRow(
                         video = video,
                         onOpen = { controller.openVideo(video.id) },
                         onOpenProfile = { controller.openProfile(video.authorUsername) },
                         onAddToPlaylist = { playlistTargetId = video.id },
+                    )
+                }
+                item {
+                    PaginationBar(
+                        currentPage = state.feed.page,
+                        totalCount = state.feed.count,
+                        pageSize = state.feed.limit,
+                        onPageSelected = { page -> controller.loadFeed(state.feed.sort, state.feed.selectedTag, page) },
                     )
                 }
             }
@@ -155,7 +166,7 @@ fun SearchScreen(
     state: AppUiState,
     controller: IwaraAppController,
 ) {
-    BackHandler { controller.loadFeed(state.feed.sort, state.feed.selectedTag) }
+    BackHandler { controller.loadFeed(state.feed.sort, state.feed.selectedTag, state.feed.page) }
     var query by rememberSaveable(state.search.query) { mutableStateOf(state.search.query) }
     var searchPlaylistTargetId by rememberSaveable { mutableStateOf<String?>(null) }
 
@@ -164,7 +175,7 @@ fun SearchScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.title_search)) },
                 navigationIcon = {
-                    IconButton(onClick = { controller.loadFeed(state.feed.sort, state.feed.selectedTag) }) {
+                    IconButton(onClick = { controller.loadFeed(state.feed.sort, state.feed.selectedTag, state.feed.page) }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
@@ -194,11 +205,11 @@ fun SearchScreen(
                 SearchType.entries.forEach { type ->
                     FilterChip(
                         selected = state.search.type == type,
-                        onClick = { controller.search(query, type) },
+                        onClick = { controller.search(query, type, page = 0) },
                         label = { Text(stringResource(type.labelRes)) },
                     )
                 }
-                FilledTonalIconButton(onClick = { controller.search(query, state.search.type) }) {
+                FilledTonalIconButton(onClick = { controller.search(query, state.search.type, page = 0) }) {
                     Icon(Icons.Filled.Search, contentDescription = stringResource(R.string.action_search_execute))
                 }
             }
@@ -214,7 +225,10 @@ fun SearchScreen(
                 )
             }
             if (state.search.type == SearchType.Videos) {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
                     items(state.search.videoResults, key = { it.id }) { video ->
                         VideoRow(
                             video = video,
@@ -223,11 +237,30 @@ fun SearchScreen(
                             onAddToPlaylist = { searchPlaylistTargetId = video.id },
                         )
                     }
+                    item {
+                        PaginationBar(
+                            currentPage = state.search.page,
+                            totalCount = state.search.count,
+                            pageSize = state.search.limit,
+                            onPageSelected = { page -> controller.search(state.search.query, state.search.type, page) },
+                        )
+                    }
                 }
             } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
                     items(state.search.userResults, key = { it.id }) { user ->
                         UserRow(user = user, onOpen = { controller.openProfile(user.username) })
+                    }
+                    item {
+                        PaginationBar(
+                            currentPage = state.search.page,
+                            totalCount = state.search.count,
+                            pageSize = state.search.limit,
+                            onPageSelected = { page -> controller.search(state.search.query, state.search.type, page) },
+                        )
                     }
                 }
             }
@@ -237,4 +270,3 @@ fun SearchScreen(
         }
     }
 }
-
